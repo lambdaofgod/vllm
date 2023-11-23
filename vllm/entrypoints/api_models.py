@@ -1,9 +1,7 @@
 from pydantic import BaseModel, Field
 
 
-class GenerationRequest(BaseModel):
-    prompt: str
-    sampling_params: RequestSamplingParams = Field(default=RequestSamplingParams())
+_SAMPLING_EPS = 1e-5
 
 
 class RequestSamplingParams(BaseModel):
@@ -179,3 +177,8 @@ class RequestSamplingParams(BaseModel):
             raise ValueError(
                 "best_of must be 1 when using greedy sampling." f"Got {self.best_of}."
             )
+
+
+class GenerationRequest(BaseModel):
+    prompt: str
+    sampling_params: RequestSamplingParams = Field(default=RequestSamplingParams())
