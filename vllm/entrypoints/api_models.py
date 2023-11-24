@@ -1,5 +1,6 @@
-from pydantic import BaseModel, Field
+from typing import List, Optional, Union
 
+from pydantic import BaseModel, Field, validator, root_validator
 
 _SAMPLING_EPS = 1e-5
 
@@ -93,92 +94,13 @@ class RequestSamplingParams(BaseModel):
     skip_special_tokens: bool = Field(default=True)
     spaces_between_special_tokens: bool = Field(default=True)
 
-    def _verify_args(self) -> None:
-        if self.n < 1:
-            raise ValueError(f"n must be at least 1, got {self.n}.")
-        if self.best_of < self.n:
-            raise ValueError(
-                f"best_of must be greater than or equal to n, "
-                f"got n={values['n']} and best_of={v}."
-                f"got n={self.n} and best_of={self.best_of}."
-            )
-        if not -2.0 <= self.presence_penalty <= 2.0:
-            raise ValueError(
-                "presence_penalty must be in [-2, 2], got " f"{self.presence_penalty}."
-            )
-        if not -2.0 <= self.frequency_penalty <= 2.0:
-            raise ValueError(
-                "frequency_penalty must be in [-2, 2], got "
-                f"{self.frequency_penalty}."
-            )
-        if not 0.0 < self.repetition_penalty <= 2.0:
-            raise ValueError(
-                "repetition_penalty must be in (0, 2], got "
-                f"{self.repetition_penalty}."
-            )
-        if self.temperature < 0.0:
-            raise ValueError(
-                f"temperature must be non-negative, got {self.temperature}."
-            )
-        if not 0.0 < self.top_p <= 1.0:
-            raise ValueError(f"top_p must be in (0, 1], got {self.top_p}.")
-        if self.top_k < -1 or self.top_k == 0:
-            raise ValueError(
-                f"top_k must be -1 (disable), or at least 1, " f"got {self.top_k}."
-            )
-        if not 0.0 <= self.min_p <= 1.0:
-            raise ValueError("min_p must be in [0, 1], got " f"{self.min_p}.")
-        if self.max_tokens < 1:
-            raise ValueError(f"max_tokens must be at least 1, got {self.max_tokens}.")
-        if self.logprobs is not None and self.logprobs < 0:
-            raise ValueError(f"logprobs must be non-negative, got {self.logprobs}.")
-        if self.prompt_logprobs is not None and self.prompt_logprobs < 0:
-            raise ValueError(
-                f"prompt_logprobs must be non-negative, got " f"{self.prompt_logprobs}."
-            )
-        return v
-
-    # Use similar validators for other fields...
-    def _verify_beam_search(self) -> None:
-        if self.best_of == 1:
-            raise ValueError(
-                "best_of must be greater than 1 when using beam "
-                f"search. Got {self.best_of}."
-            )
-        if self.temperature > _SAMPLING_EPS:
-            raise ValueError("temperature must be 0 when using beam search.")
-        if self.top_p < 1.0 - _SAMPLING_EPS:
-            raise ValueError("top_p must be 1 when using beam search.")
-        if self.top_k != -1:
-            raise ValueError("top_k must be -1 when using beam search.")
-        if self.early_stopping not in [True, False, "never"]:
-            raise ValueError(
-                f"early_stopping must be True, False, or 'never', "
-                f"got {self.early_stopping}."
-            )
-
-    def _verify_non_beam_search(self) -> None:
-        if self.early_stopping is not False:
-            raise ValueError(
-                "early_stopping is not effective and must be "
-                "False when not using beam search."
-            )
-        if (
-            self.length_penalty < 1.0 - _SAMPLING_EPS
-            or self.length_penalty > 1.0 + _SAMPLING_EPS
-        ):
-            raise ValueError(
-                "length_penalty is not effective and must be the "
-                "default value of 1.0 when not using beam search."
-            )
-
-    def _verify_greedy_sampling(self) -> None:
-        if self.best_of > 1:
-            raise ValueError(
-                "best_of must be 1 when using greedy sampling." f"Got {self.best_of}."
-            )
-
 
 class GenerationRequest(BaseModel):
     prompt: str
     sampling_params: RequestSamplingParams = Field(default=RequestSamplingParams())
+
+    @validator("prompt")
+    def _validate_prompt(cls, prompt):
+        if prompt == "":
+            raise ValueError("prompt must not be empty.")
+        return prompt

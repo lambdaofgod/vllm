@@ -2,7 +2,7 @@ import argparse
 import json
 from typing import AsyncGenerator
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 import uvicorn
 from vllm.engine.arg_utils import AsyncEngineArgs
@@ -10,6 +10,7 @@ from vllm.engine.async_llm_engine import AsyncLLMEngine
 from vllm.sampling_params import SamplingParams
 from vllm.entrypoints.api_models import GenerationRequest
 from vllm.utils import random_uuid
+from vllm.entrypoints.exceptions import ServerException, server_exception_contextmanager
 
 TIMEOUT_KEEP_ALIVE = 5  # seconds.
 TIMEOUT_TO_PREVENT_DEADLOCK = 1  # seconds.
@@ -23,6 +24,14 @@ async def health() -> Response:
     return Response(status_code=200)
 
 
+@app.exception_handler(ServerException)
+async def exception_handler(request: Request, exc: ServerException):
+    return JSONResponse(
+        status_code=400,
+        content={"message": f"App error: Reason: {exc.reason}"},
+    )
+
+
 @app.post("/generate")
 async def generate(request: GenerationRequest) -> Response:
     """Generate completion for the request.
@@ -34,9 +43,10 @@ async def generate(request: GenerationRequest) -> Response:
     """
     request_id = random_uuid()
 
-    results_generator = engine.generate(
-        request.prompt, SamplingParams(**dict(request.sampling_params)), request_id
-    )
+    with server_exception_contextmanager():
+        results_generator = engine.generate(
+            request.prompt, SamplingParams(**dict(request.sampling_params)), request_id
+        )
 
     # Streaming case
     # Non-streaming case
